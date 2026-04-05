@@ -162,7 +162,7 @@ export default function EbookViewer() {
 
   const isNextDisabled = currentIndex === storyChapters.length - 1;
 
-  // Enhance placeholder images by calling pollinations.ai to generate real dark gothic AI images for free!
+  // Enhance placeholder images by calling pollinations.ai to generate real dark gothic AI images based on the prompt
   const displayImageUrl = currentChapter.image_url.includes('picsum') && currentChapter.image_prompt 
     ? `https://image.pollinations.ai/prompt/${encodeURIComponent(currentChapter.image_prompt + ', warhammer 40k style, dark gothic, masterpiece')}?width=1200&height=600&nologo=true`
     : currentChapter.image_url;
@@ -191,6 +191,9 @@ export default function EbookViewer() {
             src={displayImageUrl} 
             alt={currentChapter.chapter_title}
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-700 ease-in-out"
+            onError={(e) => {
+              e.currentTarget.src = currentChapter.image_url; // Fallback to safe random image if AI generation times out
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
         </div>

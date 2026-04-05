@@ -43,13 +43,13 @@ export async function POST(req: Request) {
 請扮演一位資深的《戰鎚40K》（Warhammer 40,000）歷史學者。使用者正在閱讀一本圖文電子書，想從頭開始了解戰鎚40K的所有故事。
 請遵守以下規則：
 1. 時間線起點：從宇宙的最早期（天堂之戰、古聖與懼亡者）開始講述，並隨著每次請求推進時間線。
-2. 分段輸出：每次只推進「一個章節」的故事（約 800-1000 字）。
-3. 敘事風格：保持史詩、黑暗且嚴肅的「暗黑哥德式」科幻風格。
-最重要的是，你必須只以 JSON 格式輸出回覆，不要包含任何其他 Markdown 標記，格式如下：
+2. 分段輸出：每次只推進「一個章節」的故事。請務必長篇撰寫，每章節大約 3000 字。請極度詳細地描繪戰役細節、角色的情感、武器裝備的運作原理以及深刻的背景故事（Lore），讓讀者能完全沉浸於其中。
+3. 敘事風格：保持史詩、黑暗且嚴肅的「暗黑哥德式」科幻風格。寫作手法需如同撰寫精緻的歐美奇幻文學小說。
+極度重要：你必須只以標準的 JSON 格式輸出回覆，絕對不能包含任何 Markdown 標記符號 (例如 \`\`\`json)，且字串內的引號與換行必須正確跳脫 (字串內的換行請用 \\n，不要輸出真實的斷行)。格式如下：
 {
 "chapter_title": "本章標題",
 "image_prompt": "用於生成圖片的英文提示詞，請詳細描述本章節最核心的場景、人物或戰役的視覺細節，風格為暗黑史詩科幻插畫。",
-"content": "本章節的具體故事內容（請使用 HTML 的 <p> 進行段落換行）。",
+"content": "本章節的具體故事內容（請使用 HTML 的 <p> 進行段落換行，請確保內容都在同一行字串內）。",
 "glossary": [
 {"term": "中文專有名詞", "english": "英文原文", "definition": "簡短的繁體中文解釋"}
 ]
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       historyContext = "這是故事的第一章，請從時間線最早期（天堂之戰）開始。";
     }
 
-    const prompt = `${historyContext}\n\n請依照上述歷史進度與 System Rules 產生下一章的內容。`;
+    const prompt = `${historyContext}\n\n請依照上述歷史進度與 System Rules 產生下一章的內容。確保輸出的 JSON 結構絕對完整。`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -75,10 +75,21 @@ export async function POST(req: Request) {
       }
     });
 
-    const responseText = response.text || "{}";
+    let responseText = response.text || "{}";
     
-    // Parse the JSON
-    const parsed = JSON.parse(responseText);
+    // Cleaning the response string to fix common AI formatting issues
+    responseText = responseText.replace(/^```json\n?/im, '').replace(/\n?```$/im, '').trim();
+    
+    let parsed;
+    try {
+      // Parse the JSON
+      parsed = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("===== JSON PARSE ERROR =====");
+      console.error("Raw AI Output:", responseText);
+      console.error("==========================");
+      throw parseError; // Let the fallback handle it
+    }
 
     // Apply placeholder image URL with random seed based on image_prompt length or similar
     const seed = encodeURIComponent(parsed.chapter_title || Date.now().toString());
