@@ -38,10 +38,19 @@ export default function EbookViewer() {
     let currentStoryId = params.get("story_id");
 
     if (!currentStoryId) {
-      // Generate unique ID and update URL
-      currentStoryId = Math.random().toString(36).substring(2, 10);
+      // Try to restore from localStorage first
+      const savedId = localStorage.getItem('wh40k_story_id');
+      if (savedId) {
+        currentStoryId = savedId;
+      } else {
+        // Generate new unique ID
+        currentStoryId = Math.random().toString(36).substring(2, 10);
+      }
       window.history.replaceState({}, '', `/?story_id=${currentStoryId}`);
     }
+    
+    // Always persist the current story_id to localStorage
+    localStorage.setItem('wh40k_story_id', currentStoryId);
     setStoryId(currentStoryId);
 
     // Fetch story from database
@@ -53,10 +62,13 @@ export default function EbookViewer() {
         if (data.chapters && data.chapters.length > 0) {
           setStoryChapters(data.chapters);
           
-          // Restore index from URL hash or fallback to latest
+          // Restore index from URL hash or fallback to last read position in localStorage
           const savedIndex = parseInt(window.location.hash.replace('#', ''), 10);
+          const localIndex = parseInt(localStorage.getItem(`wh40k_index_${currentStoryId}`) || '-1', 10);
           if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex < data.chapters.length) {
             setCurrentIndex(savedIndex);
+          } else if (localIndex >= 0 && localIndex < data.chapters.length) {
+            setCurrentIndex(localIndex);
           } else {
             setCurrentIndex(data.chapters.length - 1);
           }
@@ -74,10 +86,11 @@ export default function EbookViewer() {
     loadStory();
   }, []);
 
-  // Update hash when index changes to allow sharing exact progress
+  // Update hash + localStorage when index changes
   useEffect(() => {
     if (!isLoadingInitial && storyChapters.length > 0) {
       window.history.replaceState({}, '', `/?story_id=${storyId}#${currentIndex}`);
+      localStorage.setItem(`wh40k_index_${storyId}`, String(currentIndex));
     }
   }, [currentIndex, storyId, isLoadingInitial, storyChapters.length]);
 
@@ -100,13 +113,20 @@ export default function EbookViewer() {
     setIsGeneratingNext(true);
 
     try {
+      const lastOne = history.slice(-1);
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           storyId: sid,
           historyCount: history.length,
-          lastChapters: history.slice(-3).map(ch => ({ title: ch.chapter_title, contentSummary: ch.content.substring(0, 200) + "..." }))
+          // Send ALL chapter titles so AI knows what events are already covered
+          allChapterTitles: history.map(ch => ch.chapter_title),
+          // Send the last chapter with a longer summary to ensure continuity
+          lastChapters: lastOne.map(ch => ({ 
+            title: ch.chapter_title, 
+            contentSummary: ch.content.replace(/<[^>]*>/g, '').substring(0, 600) + "..."
+          }))
         })
       });
 
@@ -145,6 +165,8 @@ export default function EbookViewer() {
   const handleReset = () => {
     if (window.confirm("確定要清除所有回憶，將時間線重置回太初之時嗎？")) {
       const newStoryId = Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('wh40k_story_id', newStoryId);
+      localStorage.removeItem(`wh40k_index_${storyId}`);
       window.location.href = `/?story_id=${newStoryId}`;
     }
   };
@@ -162,10 +184,7 @@ export default function EbookViewer() {
 
   const isNextDisabled = currentIndex === storyChapters.length - 1;
 
-  // Enhance placeholder images by calling pollinations.ai to generate real dark gothic AI images based on the prompt
-  const displayImageUrl = currentChapter.image_url.includes('picsum') && currentChapter.image_prompt 
-    ? `https://image.pollinations.ai/prompt/${encodeURIComponent(currentChapter.image_prompt + ', warhammer 40k style, dark gothic, masterpiece')}?width=1200&height=600&nologo=true`
-    : currentChapter.image_url;
+  const displayImageUrl = currentChapter.image_url;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col gap-12 bg-transparent text-[var(--color-parchment)]">
@@ -192,7 +211,7 @@ export default function EbookViewer() {
             alt={currentChapter.chapter_title}
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-700 ease-in-out"
             onError={(e) => {
-              e.currentTarget.src = currentChapter.image_url; // Fallback to safe random image if AI generation times out
+              e.currentTarget.src = `https://picsum.photos/seed/fallback/1200/600`; // Static fallback if proxy fails
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
