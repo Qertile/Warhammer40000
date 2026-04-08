@@ -11,7 +11,7 @@
 - Old Ones → 古聖
 - Necrontyr → 懼亡者（後成為涅克戎的古代肉身種族）
 - Necrons / Necron → 太空死靈
-- C'tan / Star Gods → C'坦（星辰之神）
+- C'tan / Star Gods → 星神（星辰之神）
 - Eldar / Aeldari → 艾達靈族
 - Dark Eldar / Drukhari → 黑暗艾達靈族
 - Harlequins → 丑角

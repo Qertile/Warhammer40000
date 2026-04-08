@@ -5,10 +5,32 @@ import { join } from 'path';
 
 import { saveStoryChapter } from '@/lib/db';
 
-// Load terminology table from external editable file
+// Load and parse terminology table from external editable file into a strict lookup list
+function parseTerminologyToList(raw: string): string {
+  const lines = raw.split(/\r?\n/);
+  const pairs: string[] = [];
+  for (const line of lines) {
+    // Skip headers, blank lines, and comments
+    if (!line.trim() || line.startsWith('#') || line.startsWith('//')) continue;
+    // Match lines like: English / English → 中文（說明）
+    const match = line.match(/^-\s*(.+?)\s*→\s*([^（(]+)/);
+    if (match) {
+      const eng = match[1].trim();
+      const chi = match[2].trim();
+      // Handle multiple English variants separated by /
+      const variants = eng.split('/').map(v => v.trim());
+      for (const v of variants) {
+        if (v) pairs.push(`${v} → ${chi}`);
+      }
+    }
+  }
+  return pairs.join('\n');
+}
+
 let terminologyTable = '';
 try {
-  terminologyTable = readFileSync(join(process.cwd(), 'terminology.md'), 'utf-8');
+  const rawTerminology = readFileSync(join(process.cwd(), 'terminology.md'), 'utf-8');
+  terminologyTable = parseTerminologyToList(rawTerminology);
 } catch {
   terminologyTable = '（找不到 terminology.md 術語表，請確認檔案存在於專案根目錄）';
 }
@@ -95,8 +117,12 @@ export async function POST(req: Request) {
   ⚠ 此規則比任何其他規則的優先級都高，絕對不可省略。
 
 ════════════════════════════════════════
-【專有名詞翻譯標準】── 嚴格遵守下列譯名
+【專有名詞強制譯名對照表】── 以下是唯一合法的中文譯名
 ════════════════════════════════════════
+⚠ 強制命令：下列每個英文專有名詞，在故事中出現時，必須且只能使用對應的中文譯名。
+⚠ 禁止使用任何自創翻譯、音譯，或與對照表不符的中文表達。
+⚠ 格式說明：「英文原文 → 唯一合法中文譯名」
+
 ${terminologyTable}
 
 ════════════════════════════════════════
